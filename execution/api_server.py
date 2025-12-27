@@ -185,11 +185,21 @@ def run_scrape_async(group_ids, session_id):
                 add_log("⏳ Envoi des données...")
                 scrape_status["progress_percent"] = 92
                 
-                # Envoyer à Supabase
+                # Calculer le coût Apify
+                # Pricing: $4.00 / 1000 posts + $1.00 / 1000 (date filter) + $0.005 (actor start)
+                total_posts_scraped = len(items)  # Nombre TOTAL de posts avant filtrage IA
+                cost_posts = (total_posts_scraped / 1000) * 4.00
+                cost_date_filter = (total_posts_scraped / 1000) * 1.00
+                cost_actor_start = 0.005
+                apify_cost = round(cost_posts + cost_date_filter + cost_actor_start, 4)
+                add_log(f"💰 Coût Apify estimé: ${apify_cost:.4f}")
+                
+                # Envoyer à Supabase avec le coût
                 send_to_supabase(
                     opportunities,
                     groups_scraped=group_names,
-                    started_at=scrape_status["started_at"]
+                    started_at=scrape_status["started_at"],
+                    cost=apify_cost  # ← NOUVEAU: envoi du coût
                 )
                 scrape_status["progress_percent"] = 98
                 
@@ -200,7 +210,8 @@ def run_scrape_async(group_ids, session_id):
                     "total_posts": data['postsCount'],
                     "opportunities_found": len(opportunities),
                     "groups_scraped": group_names,
-                    "completed_at": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+                    "completed_at": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
+                    "cost": apify_cost  # ← Coût Apify
                 }
         
         # === TERMINÉ (100%) ===
