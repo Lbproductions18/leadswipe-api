@@ -26,6 +26,41 @@ from dotenv import load_dotenv
 # Charger les variables d'environnement
 load_dotenv()
 
+# Firebase Cloud Messaging (optionnel)
+firebase_enabled = False
+try:
+    import firebase_admin
+    from firebase_admin import credentials, messaging
+    
+    # Chercher le fichier de credentials Firebase
+    firebase_cred_path = os.environ.get('FIREBASE_CREDENTIALS_PATH')
+    if not firebase_cred_path:
+        # Chercher dans les emplacements par défaut
+        possible_paths = [
+            Path(__file__).parent / 'firebase-credentials.json',
+            Path(__file__).parent.parent / 'firebase-credentials.json',
+            Path(__file__).parent / 'serviceAccountKey.json',
+        ]
+        for p in possible_paths:
+            if p.exists():
+                firebase_cred_path = str(p)
+                break
+    
+    if firebase_cred_path and Path(firebase_cred_path).exists():
+        cred = credentials.Certificate(firebase_cred_path)
+        firebase_admin.initialize_app(cred)
+        firebase_enabled = True
+        print("✅ Firebase Cloud Messaging activé")
+    else:
+        print("⚠️ Firebase credentials non trouvées - notifications désactivées")
+except ImportError:
+    print("⚠️ firebase-admin non installé - notifications désactivées")
+except Exception as e:
+    print(f"⚠️ Erreur initialisation Firebase: {e}")
+
+# Stockage des tokens FCM (en mémoire - en prod utiliser une DB)
+fcm_tokens = set()
+
 app = Flask(__name__)
 CORS(app)  # Permet les requêtes cross-origin depuis React
 
@@ -50,6 +85,48 @@ def add_log(message: str):
     if len(scrape_status["logs"]) > 50:
         scrape_status["logs"] = scrape_status["logs"][-50:]
     print(log_entry)  # Aussi afficher dans la console
+
+
+def send_push_notification(title: str, body: str, data: dict = None):
+    """Envoie une notification push à tous les devices enregistrés"""
+    if not firebase_enabled:
+        print(f"📱 [FCM désactivé] {title}: {body}")
+        return False
+    
+    if not fcm_tokens:
+        print("📱 Aucun device enregistré pour les notifications")
+        return False
+    
+    success_count = 0
+    failed_tokens = []
+    
+    for token in list(fcm_tokens):
+        try:
+            message = messaging.Message(
+                notification=messaging.Notification(
+                    title=title,
+                    body=body,
+                ),
+                data=data or {},
+                token=token,
+            )
+            response = messaging.send(message)
+            print(f"📱 Notification envoyée: {response}")
+            success_count += 1
+        except Exception as e:
+            error_str = str(e)
+            print(f"❌ Erreur envoi notification: {error_str}")
+            # Supprimer les tokens invalides
+            if "not found" in error_str.lower() or "invalid" in error_str.lower():
+                failed_tokens.append(token)
+    
+    # Nettoyer les tokens invalides
+    for token in failed_tokens:
+        fcm_tokens.discard(token)
+        print(f"🗑️ Token invalide supprimé")
+    
+    print(f"📱 Notifications: {success_count}/{len(fcm_tokens) + len(failed_tokens)} envoyées")
+    return success_count > 0
 
 
 def load_groups():
@@ -220,6 +297,25 @@ def run_scrape_async(group_ids, session_id):
         add_log(f"📈 Résumé: {data['postsCount']} posts → {len(opportunities) if success else 0} opportunités")
         scrape_status["progress"] = "Terminé!"
         
+        # Envoyer une notification push
+        opp_count = len(opportunities) if success else 0
+        if opp_count > 0:
+            send_push_notification(
+                title="🎉 Scraping terminé!",
+                body=f"{opp_count} nouvelle{'s' if opp_count > 1 else ''} opportunité{'s' if opp_count > 1 else ''} trouvée{'s' if opp_count > 1 else ''}",
+                data={
+                    "type": "scrape_complete",
+                    "opportunities_count": str(opp_count),
+                    "session_id": session_id
+                }
+            )
+        else:
+            send_push_notification(
+                title="✅ Scraping terminé",
+                body="Aucune nouvelle opportunité cette fois",
+                data={"type": "scrape_complete", "opportunities_count": "0"}
+            )
+        
     except Exception as e:
         add_log(f"❌ Erreur: {str(e)}")
         scrape_status["progress"] = f"Erreur: {str(e)}"
@@ -310,8 +406,9 @@ def root():
     return jsonify({
         "service": "LeadSwipe API",
         "status": "healthy",
-        "version": "1.0.0",
-        "endpoints": ["/groups", "/scrape", "/status", "/health"]
+        "version": "1.1.0",
+        "firebase_enabled": firebase_enabled,
+        "endpoints": ["/groups", "/scrape", "/status", "/health", "/register-device", "/test-notification"]
     })
 
 
@@ -321,15 +418,79 @@ def health_check():
     return jsonify({"status": "ok", "timestamp": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')})
 
 
+@app.route('/register-device', methods=['POST'])
+def register_device():
+    """Enregistre un device pour les notifications push"""
+    data = request.get_json() or {}
+    fcm_token = data.get('fcm_token')
+    
+    if not fcm_token:
+        return jsonify({
+            "success": False,
+            "error": "fcm_token requis"
+        }), 400
+    
+    fcm_tokens.add(fcm_token)
+    print(f"📱 Device enregistré (total: {len(fcm_tokens)})")
+    
+    return jsonify({
+        "success": True,
+        "message": "Device enregistré pour les notifications",
+        "firebase_enabled": firebase_enabled,
+        "total_devices": len(fcm_tokens)
+    })
+
+
+@app.route('/unregister-device', methods=['POST'])
+def unregister_device():
+    """Désenregistre un device des notifications push"""
+    data = request.get_json() or {}
+    fcm_token = data.get('fcm_token')
+    
+    if fcm_token and fcm_token in fcm_tokens:
+        fcm_tokens.discard(fcm_token)
+        print(f"📱 Device désenregistré (total: {len(fcm_tokens)})")
+    
+    return jsonify({
+        "success": True,
+        "message": "Device désenregistré",
+        "total_devices": len(fcm_tokens)
+    })
+
+
+@app.route('/test-notification', methods=['POST'])
+def test_notification():
+    """Endpoint de test pour les notifications (développement uniquement)"""
+    data = request.get_json() or {}
+    title = data.get('title', '🔔 Test LeadSwipe')
+    body = data.get('body', 'Ceci est une notification de test!')
+    
+    success = send_push_notification(
+        title=title,
+        body=body,
+        data={"type": "test"}
+    )
+    
+    return jsonify({
+        "success": success,
+        "firebase_enabled": firebase_enabled,
+        "registered_devices": len(fcm_tokens),
+        "message": "Notification envoyée" if success else "Échec ou aucun device"
+    })
+
+
 if __name__ == '__main__':
     print("\n" + "="*60)
     print("🚀 API Server pour Facebook Scraping")
     print("="*60)
+    print(f"\n📱 Firebase: {'✅ Activé' if firebase_enabled else '❌ Désactivé'}")
     print("\nEndpoints disponibles:")
-    print("  GET  /groups  - Liste des groupes configurés")
-    print("  POST /scrape  - Déclencher un scrape")
-    print("  GET  /status  - Status du scrape en cours")
-    print("  GET  /health  - Health check")
+    print("  GET  /groups           - Liste des groupes configurés")
+    print("  POST /scrape           - Déclencher un scrape")
+    print("  GET  /status           - Status du scrape en cours")
+    print("  GET  /health           - Health check")
+    print("  POST /register-device  - Enregistrer device pour push")
+    print("  POST /test-notification - Tester les notifications")
     print("\nExemples:")
     print('  curl http://localhost:5001/groups')
     print('  curl -X POST http://localhost:5001/scrape -H "Content-Type: application/json" -d \'{"group_ids": "all"}\'')
