@@ -171,7 +171,22 @@ def run_ai_analysis(json_file: Path):
     return result.returncode == 0
 
 
-def send_to_supabase(opportunities: list, groups_scraped: list = None, started_at: str = None) -> bool:
+def calculate_apify_cost(total_posts: int, use_date_filter: bool = True) -> float:
+    """
+    Calcule le coût Apify basé sur le pricing Starter plan:
+    - Posts: $4.00 / 1,000
+    - Date filter add-on: $1.00 / 1,000
+    - Actor start: $0.005 (one-time)
+    """
+    cost_posts = (total_posts / 1000) * 4.00
+    cost_date_filter = (total_posts / 1000) * 1.00 if use_date_filter else 0
+    cost_actor_start = 0.005
+    
+    total_cost = cost_posts + cost_date_filter + cost_actor_start
+    return round(total_cost, 4)
+
+
+def send_to_supabase(opportunities: list, groups_scraped: list = None, started_at: str = None, cost: float = None) -> bool:
     """Envoie les opportunités à Supabase via Edge Function webhook"""
     import requests
     
@@ -198,7 +213,8 @@ def send_to_supabase(opportunities: list, groups_scraped: list = None, started_a
         "session_title": session_title,
         "groups_scraped": groups_scraped or [],
         "started_at": started_at or datetime.now().isoformat(),
-        "opportunities": opportunities
+        "opportunities": opportunities,
+        "cost": cost  # Coût Apify calculé
     }
     
     try:
@@ -224,7 +240,7 @@ def send_to_supabase(opportunities: list, groups_scraped: list = None, started_a
         return False
 
 
-def send_notification(opportunities: list, total_posts: int, groups_scraped: list = None, started_at: str = None):
+def send_notification(opportunities: list, total_posts: int, groups_scraped: list = None, started_at: str = None, cost: float = None):
     """Envoie une notification avec les résultats (extensible)"""
     print(f"\n{Colors.HEADER}{'='*60}{Colors.END}")
     print(f"{Colors.BOLD}📬 RÉSUMÉ{Colors.END}")
@@ -232,6 +248,8 @@ def send_notification(opportunities: list, total_posts: int, groups_scraped: lis
     
     print(f"\n{Colors.CYAN}Posts scrapés:{Colors.END} {total_posts}")
     print(f"{Colors.GREEN}Opportunités:{Colors.END} {len(opportunities)}")
+    if cost is not None:
+        print(f"{Colors.YELLOW}💰 Coût Apify:{Colors.END} ${cost:.4f} USD")
     
     if opportunities:
         print(f"\n{Colors.BOLD}🎯 Top opportunités:{Colors.END}")
@@ -240,8 +258,8 @@ def send_notification(opportunities: list, total_posts: int, groups_scraped: lis
             summary = opp.get('ai_analysis', {}).get('summary', '')[:60]
             print(f"   {i}. [{category}] {summary}...")
         
-        # Envoyer à Supabase avec les infos de session
-        send_to_supabase(opportunities, groups_scraped=groups_scraped, started_at=started_at)
+        # Envoyer à Supabase avec les infos de session et le coût
+        send_to_supabase(opportunities, groups_scraped=groups_scraped, started_at=started_at, cost=cost)
     
     # TODO: Ajouter ici l'envoi par email/Slack/SMS
     # - Email: via smtplib ou SendGrid
@@ -279,6 +297,11 @@ def main():
         print(f"{Colors.YELLOW}⚠️ Aucun post récupéré{Colors.END}")
         sys.exit(1)
     
+    # Calculer le coût Apify basé sur le nombre TOTAL de posts scrapés
+    total_posts_scraped = len(items)
+    apify_cost = calculate_apify_cost(total_posts_scraped, use_date_filter=True)
+    print(f"\n{Colors.YELLOW}💰 Coût Apify estimé: ${apify_cost:.4f} USD ({total_posts_scraped} posts){Colors.END}")
+    
     # 3. Transformer et sauvegarder les données
     data = transform_apify_data(items, groups)
     
@@ -304,12 +327,14 @@ def main():
                 results = json.load(f)
             
             opportunities = results.get('opportunities', [])
-            send_notification(opportunities, data['postsCount'], groups_scraped=group_names, started_at=started_at)
+            send_notification(opportunities, data['postsCount'], groups_scraped=group_names, started_at=started_at, cost=apify_cost)
     
     print(f"\n{Colors.GREEN}✅ Auto-scrape terminé!{Colors.END}\n")
 
 
 if __name__ == '__main__':
     main()
+
+
 
 
