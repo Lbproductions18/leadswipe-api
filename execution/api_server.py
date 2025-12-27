@@ -32,22 +32,38 @@ try:
     import firebase_admin
     from firebase_admin import credentials, messaging
     
-    # Chercher le fichier de credentials Firebase
-    firebase_cred_path = os.environ.get('FIREBASE_CREDENTIALS_PATH')
-    if not firebase_cred_path:
-        # Chercher dans les emplacements par défaut
-        possible_paths = [
-            Path(__file__).parent / 'firebase-credentials.json',
-            Path(__file__).parent.parent / 'firebase-credentials.json',
-            Path(__file__).parent / 'serviceAccountKey.json',
-        ]
-        for p in possible_paths:
-            if p.exists():
-                firebase_cred_path = str(p)
-                break
+    cred = None
     
-    if firebase_cred_path and Path(firebase_cred_path).exists():
-        cred = credentials.Certificate(firebase_cred_path)
+    # Option 1: JSON string dans variable d'environnement (pour Render/cloud)
+    firebase_cred_json = os.environ.get('FIREBASE_CREDENTIALS_JSON')
+    if firebase_cred_json:
+        try:
+            cred_dict = json.loads(firebase_cred_json)
+            cred = credentials.Certificate(cred_dict)
+            print("✅ Firebase credentials chargées depuis FIREBASE_CREDENTIALS_JSON")
+        except json.JSONDecodeError as e:
+            print(f"⚠️ FIREBASE_CREDENTIALS_JSON invalide: {e}")
+    
+    # Option 2: Chemin vers fichier
+    if not cred:
+        firebase_cred_path = os.environ.get('FIREBASE_CREDENTIALS_PATH')
+        if not firebase_cred_path:
+            # Chercher dans les emplacements par défaut
+            possible_paths = [
+                Path(__file__).parent / 'firebase-credentials.json',
+                Path(__file__).parent.parent / 'firebase-credentials.json',
+                Path(__file__).parent / 'serviceAccountKey.json',
+            ]
+            for p in possible_paths:
+                if p.exists():
+                    firebase_cred_path = str(p)
+                    break
+        
+        if firebase_cred_path and Path(firebase_cred_path).exists():
+            cred = credentials.Certificate(firebase_cred_path)
+            print(f"✅ Firebase credentials chargées depuis {firebase_cred_path}")
+    
+    if cred:
         firebase_admin.initialize_app(cred)
         firebase_enabled = True
         print("✅ Firebase Cloud Messaging activé")
