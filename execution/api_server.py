@@ -36,6 +36,7 @@ scrape_status = {
     "started_at": None,
     "groups_scraping": [],
     "progress": None,
+    "progress_percent": 0,  # 0-100 pour la barre de progression
     "last_result": None,
     "logs": []  # Buffer de logs pour affichage temps réel
 }
@@ -76,10 +77,13 @@ def run_scrape_async(group_ids, session_id):
         sys.path.insert(0, str(Path(__file__).parent))
         from auto_scrape import load_config, run_apify_scrape, transform_apify_data, run_ai_analysis, send_to_supabase
         
+        # === ÉTAPE 1: Chargement config (0-5%) ===
+        scrape_status["progress_percent"] = 2
         add_log("📋 Chargement de la configuration...")
         config = load_config()
         all_groups = config.get('groups', [])
         add_log(f"✓ {len(all_groups)} groupes trouvés")
+        scrape_status["progress_percent"] = 5
         
         # Filtrer les groupes si spécifié
         if group_ids != "all":
@@ -96,27 +100,36 @@ def run_scrape_async(group_ids, session_id):
         for g in selected_groups:
             add_log(f"   • {g['name']}")
         
-        # Lancer le scraping
+        # === ÉTAPE 2: Connexion Apify (5-10%) ===
         posts_per_group = config.get('settings', {}).get('posts_per_group', 50)
         add_log(f"⚙️ Configuration: {posts_per_group} posts/groupe")
+        scrape_status["progress_percent"] = 8
         add_log("📡 Connexion à Apify...")
+        scrape_status["progress_percent"] = 10
         add_log("⏳ Scraping Facebook en cours...")
         
+        # === ÉTAPE 3: Scraping (10-60%) ===
+        # Note: Apify ne donne pas de progression par groupe, donc on met 35% pendant le scraping
+        scrape_status["progress_percent"] = 35
         items = run_apify_scrape(selected_groups, posts_per_group)
+        scrape_status["progress_percent"] = 60
         
         if not items:
             add_log("⚠️ Aucun post récupéré")
             scrape_status["progress"] = "Aucun post récupéré"
+            scrape_status["progress_percent"] = 100
             scrape_status["is_running"] = False
             return
         
         add_log(f"✅ {len(items)} posts récupérés depuis Facebook")
         scrape_status["progress"] = f"Transformation de {len(items)} posts..."
+        scrape_status["progress_percent"] = 62
         
         # Transformer les données
         add_log("🔄 Transformation des données...")
         data = transform_apify_data(items, selected_groups)
         add_log(f"✓ {data['postsCount']} posts avec texte")
+        scrape_status["progress_percent"] = 65
         
         # Sauvegarder
         add_log("💾 Sauvegarde des données...")
@@ -129,18 +142,25 @@ def run_scrape_async(group_ids, session_id):
             json.dump(data, f, ensure_ascii=False, indent=2)
         
         add_log(f"📁 Fichier créé: api_scrape_{timestamp}.json")
+        scrape_status["progress_percent"] = 68
+        
+        # === ÉTAPE 4: Analyse IA (68-85%) ===
         scrape_status["progress"] = "Analyse IA en cours..."
         add_log("🤖 Lancement de l'analyse IA...")
+        scrape_status["progress_percent"] = 70
         add_log("⏳ GPT-4o-mini analyse les posts...")
+        scrape_status["progress_percent"] = 75
         
         # Lancer l'analyse IA
         success = run_ai_analysis(output_file)
+        scrape_status["progress_percent"] = 85
         
         if success:
             add_log("✓ Analyse IA terminée")
             analyzed_file = output_dir / f'ai_analyzed_api_scrape_{timestamp}.json'
             if analyzed_file.exists():
                 add_log("📊 Chargement des résultats...")
+                scrape_status["progress_percent"] = 87
                 with open(analyzed_file, 'r', encoding='utf-8') as f:
                     results = json.load(f)
                 
@@ -148,6 +168,7 @@ def run_scrape_async(group_ids, session_id):
                 group_names = [g['name'] for g in selected_groups]
                 
                 add_log(f"🎯 {len(opportunities)} opportunités détectées")
+                scrape_status["progress_percent"] = 88
                 
                 if opportunities:
                     # Afficher un aperçu des opportunités trouvées
@@ -157,9 +178,12 @@ def run_scrape_async(group_ids, session_id):
                     if len(opportunities) > 3:
                         add_log(f"   ... et {len(opportunities) - 3} autres")
                 
+                # === ÉTAPE 5: Envoi Supabase (88-100%) ===
                 scrape_status["progress"] = f"Envoi de {len(opportunities)} opportunités à Supabase..."
+                scrape_status["progress_percent"] = 90
                 add_log("📤 Connexion à Supabase...")
                 add_log("⏳ Envoi des données...")
+                scrape_status["progress_percent"] = 92
                 
                 # Envoyer à Supabase
                 send_to_supabase(
@@ -167,6 +191,7 @@ def run_scrape_async(group_ids, session_id):
                     groups_scraped=group_names,
                     started_at=scrape_status["started_at"]
                 )
+                scrape_status["progress_percent"] = 98
                 
                 add_log("✓ Données envoyées à Supabase")
                 
@@ -178,6 +203,8 @@ def run_scrape_async(group_ids, session_id):
                     "completed_at": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
                 }
         
+        # === TERMINÉ (100%) ===
+        scrape_status["progress_percent"] = 100
         add_log("🏁 Scraping terminé avec succès!")
         add_log(f"📈 Résumé: {data['postsCount']} posts → {len(opportunities) if success else 0} opportunités")
         scrape_status["progress"] = "Terminé!"
@@ -185,6 +212,7 @@ def run_scrape_async(group_ids, session_id):
     except Exception as e:
         add_log(f"❌ Erreur: {str(e)}")
         scrape_status["progress"] = f"Erreur: {str(e)}"
+        scrape_status["progress_percent"] = 100  # Marquer comme terminé même en cas d'erreur
     
     finally:
         scrape_status["is_running"] = False
@@ -238,6 +266,7 @@ def start_scrape():
         "started_at": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
         "groups_scraping": [],
         "progress": "Initialisation...",
+        "progress_percent": 0,  # Reset à 0
         "last_result": None,
         "logs": []  # Reset les logs
     }
