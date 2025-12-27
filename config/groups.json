@@ -1,0 +1,67 @@
+{
+  "groups": [
+    {
+      "name": "Entrepreneurs Québec",
+      "url": "https://www.facebook.com/groups/EntrepreneursQC"
+    },
+    {
+      "name": "La Gang des Pigistes",
+      "url": "https://www.facebook.com/groups/lagangdespigistes/"
+    },
+    {
+      "name": "Freelancers/Pigistes du Québec",
+      "url": "https://www.facebook.com/groups/129106267163999/"
+    },
+    {
+      "name": "Montreal Freelancers",
+      "url": "https://www.facebook.com/groups/montrealfreelancers/"
+    },
+    {
+      "name": "Pigistes Québec",
+      "url": "https://www.facebook.com/groups/2022672758038293/"
+    },
+    {
+      "name": "IG Jobs Québec",
+      "url": "https://www.facebook.com/groups/igqjobs/"
+    },
+    {
+      "name": "Développeurs Québec",
+      "url": "https://www.facebook.com/groups/developeursquebec/"
+    },
+    {
+      "name": "Marketing & Communications Québec",
+      "url": "https://www.facebook.com/groups/mktgcommqc/"
+    },
+    {
+      "name": "Photographes Professionnels du Québec",
+      "url": "https://www.facebook.com/groups/119360868719057/"
+    },
+    {
+      "name": "Créateurs de Contenu Québec",
+      "url": "https://www.facebook.com/groups/110430245794291/"
+    },
+    {
+      "name": "Vidéo DSLR Québec",
+      "url": "https://www.facebook.com/groups/videodslrquebec/"
+    },
+    {
+      "name": "Professionnels Marketing Communications QC",
+      "url": "https://www.facebook.com/groups/ProfessionnelsMarketingCommunicationsQC/"
+    },
+    {
+      "name": "Freelance Montreal",
+      "url": "https://www.facebook.com/groups/FreelanceMontreal/"
+    }
+  ],
+  "settings": {
+    "posts_per_group": 20,
+    "schedule": {
+      "enabled": true,
+      "times": [
+        "12:00",
+        "19:00"
+      ],
+      "timezone": "America/Montreal"
+    }
+  }
+}

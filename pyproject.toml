@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "leadswipe-api"
+version = "1.0.0"
+description = "LeadSwipe Facebook Scraper API"
+requires-python = ">=3.9"
+dependencies = [
+    "apify-client>=1.0.0",
+    "flask>=2.0.0",
+    "flask-cors>=3.0.0",
+    "python-dotenv>=1.0.0",
+    "requests>=2.28.0",
+    "openai>=1.0.0",
+    "gunicorn>=21.0.0",
+]

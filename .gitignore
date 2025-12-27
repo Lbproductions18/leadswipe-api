@@ -1,0 +1,15 @@
+# Files to ignore
+.env
+.DS_Store
+__pycache__/
+*.pyc
+*.pyo
+.tmp/
+*.log
+venv/
+.venv/
+*.egg-info/
+dist/
+build/
+.idea/
+.vscode/

@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Facebook Group Scanner</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      width: 360px;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      color: #e8e8e8;
+      padding: 20px;
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    .header h1 {
+      font-size: 18px;
+      font-weight: 600;
+      color: #4facfe;
+      margin-bottom: 4px;
+    }
+
+    .version {
+      font-size: 10px;
+      color: #666;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 4px 10px;
+      background: linear-gradient(135deg, #00d26a 0%, #00a854 100%);
+      border-radius: 12px;
+      font-size: 10px;
+      color: white;
+      margin-top: 8px;
+      font-weight: 600;
+    }
+
+    /* Settings section */
+    .settings {
+      background: rgba(255,255,255,0.05);
+      border-radius: 10px;
+      padding: 12px;
+      margin-bottom: 16px;
+    }
+
+    .settings-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+      font-size: 12px;
+      color: #888;
+    }
+
+    .settings-content {
+      display: none;
+      margin-top: 12px;
+    }
+
+    .settings-content.show {
+      display: block;
+    }
+
+    .input-group {
+      margin-bottom: 12px;
+    }
+
+    .input-group label {
+      display: block;
+      font-size: 11px;
+      color: #888;
+      margin-bottom: 4px;
+    }
+
+    .input-group input, .input-group select {
+      width: 100%;
+      padding: 10px;
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 8px;
+      color: #e8e8e8;
+      font-size: 13px;
+    }
+
+    .input-group input:focus, .input-group select:focus {
+      outline: none;
+      border-color: #4facfe;
+    }
+
+    .input-group select option {
+      background: #1a1a2e;
+    }
+
+    /* Group URL display */
+    .group-url {
+      background: rgba(79, 172, 254, 0.1);
+      border: 1px solid rgba(79, 172, 254, 0.3);
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 16px;
+      font-size: 12px;
+    }
+
+    .group-url-label {
+      color: #4facfe;
+      font-size: 10px;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+
+    .group-url-value {
+      word-break: break-all;
+      color: #e8e8e8;
+    }
+
+    .group-url.error {
+      background: rgba(255, 71, 87, 0.1);
+      border-color: rgba(255, 71, 87, 0.3);
+    }
+
+    .group-url.error .group-url-label {
+      color: #ff4757;
+    }
+
+    /* Buttons */
+    .btn {
+      width: 100%;
+      padding: 14px 20px;
+      font-size: 14px;
+      font-weight: 600;
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      margin-bottom: 8px;
+    }
+
+    .btn:disabled {
+      background: #444 !important;
+      cursor: not-allowed;
+      transform: none !important;
+      box-shadow: none !important;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      box-shadow: 0 8px 20px rgba(79, 172, 254, 0.4);
+      transform: translateY(-2px);
+    }
+
+    .btn-secondary {
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.2);
+    }
+
+    .btn-secondary:hover:not(:disabled) {
+      background: rgba(255,255,255,0.15);
+    }
+
+    /* Progress */
+    .progress {
+      display: none;
+      margin-bottom: 16px;
+    }
+
+    .progress.show {
+      display: block;
+    }
+
+    .progress-status {
+      text-align: center;
+      margin-bottom: 12px;
+    }
+
+    .progress-icon {
+      font-size: 32px;
+      animation: spin 2s linear infinite;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .progress-text {
+      font-size: 13px;
+      color: #888;
+      margin-top: 8px;
+    }
+
+    .progress-bar {
+      height: 4px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #4facfe, #00f2fe);
+      border-radius: 2px;
+      transition: width 0.5s ease;
+      animation: pulse-bar 1.5s ease-in-out infinite;
+    }
+
+    @keyframes pulse-bar {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
+    }
+
+    /* Results */
+    .results {
+      display: none;
+      background: rgba(0, 210, 106, 0.1);
+      border: 1px solid rgba(0, 210, 106, 0.3);
+      border-radius: 10px;
+      padding: 16px;
+      margin-bottom: 16px;
+      text-align: center;
+    }
+
+    .results.show {
+      display: block;
+    }
+
+    .results.error {
+      background: rgba(255, 71, 87, 0.1);
+      border-color: rgba(255, 71, 87, 0.3);
+    }
+
+    .results-icon {
+      font-size: 32px;
+      margin-bottom: 8px;
+    }
+
+    .results-count {
+      font-size: 36px;
+      font-weight: 700;
+      color: #00d26a;
+    }
+
+    .results.error .results-count {
+      color: #ff4757;
+      font-size: 14px;
+    }
+
+    .results-label {
+      font-size: 12px;
+      color: #888;
+    }
+
+    /* Footer */
+    .footer {
+      text-align: center;
+      font-size: 10px;
+      color: #555;
+      margin-top: 16px;
+    }
+
+    .footer a {
+      color: #4facfe;
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>🔍 FB Group Scanner</h1>
+    <div class="version">v6.0.3</div>
+    <div class="badge">⚡ POWERED BY APIFY</div>
+  </div>
+
+  <!-- Settings -->
+  <div class="settings">
+    <div class="settings-header" id="settingsHeader">
+      ⚙️ Configuration
+      <span id="settingsArrow">▼</span>
+    </div>
+    <div class="settings-content" id="settingsContent">
+      <div class="input-group">
+        <label>Token Apify</label>
+        <input type="password" id="apifyToken" placeholder="apify_api_xxxxx">
+      </div>
+      <div class="input-group">
+        <label>Nombre de posts</label>
+        <select id="postsLimit">
+          <option value="25">25 posts</option>
+          <option value="50" selected>50 posts</option>
+          <option value="100">100 posts</option>
+          <option value="200">200 posts</option>
+          <option value="500">500 posts</option>
+        </select>
+      </div>
+      <div class="input-group">
+        <label>Tri</label>
+        <select id="sortOrder">
+          <option value="new" selected>Plus récents</option>
+          <option value="activity">Activité récente</option>
+          <option value="relevant">Plus pertinents</option>
+        </select>
+      </div>
+      <button class="btn btn-secondary" id="btnSaveSettings">💾 Sauvegarder</button>
+    </div>
+  </div>
+
+  <!-- Group URL -->
+  <div class="group-url" id="groupUrl">
+    <div class="group-url-label">Groupe détecté</div>
+    <div class="group-url-value" id="groupUrlValue">Chargement...</div>
+  </div>
+
+  <!-- Progress -->
+  <div class="progress" id="progress">
+    <div class="progress-status">
+      <div class="progress-icon">⚙️</div>
+      <div class="progress-text" id="progressText">Lancement du scraper...</div>
+    </div>
+    <div class="progress-bar">
+      <div class="progress-fill" id="progressFill" style="width: 10%"></div>
+    </div>
+  </div>
+
+  <!-- Results -->
+  <div class="results" id="results">
+    <div class="results-icon">✅</div>
+    <div class="results-count" id="resultsCount">0</div>
+    <div class="results-label">posts extraits</div>
+  </div>
+
+  <!-- Buttons -->
+  <button class="btn btn-primary" id="btnScrape" disabled>
+    🚀 Scraper avec Apify
+  </button>
+
+  <button class="btn btn-secondary" id="btnDownload" style="display:none;">
+    📥 Télécharger le JSON
+  </button>
+
+  <div class="footer">
+    Utilise ~$0.01-0.05 de crédit Apify par scan<br>
+    <a href="https://console.apify.com" target="_blank">Gérer mon compte Apify</a>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
