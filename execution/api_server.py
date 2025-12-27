@@ -264,6 +264,17 @@ def get_status():
     })
 
 
+@app.route('/', methods=['GET', 'HEAD'])
+def root():
+    """Root endpoint - utilisé par Render pour le health check"""
+    return jsonify({
+        "service": "LeadSwipe API",
+        "status": "healthy",
+        "version": "1.0.0",
+        "endpoints": ["/groups", "/scrape", "/status", "/health"]
+    })
+
+
 @app.route('/health', methods=['GET'])
 def health_check():
     """Health check endpoint"""
