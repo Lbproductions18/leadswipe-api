@@ -476,23 +476,55 @@ def unregister_device():
 
 @app.route('/test-notification', methods=['POST'])
 def test_notification():
-    """Endpoint de test pour les notifications (développement uniquement)"""
+    """Endpoint de test pour les notifications push"""
+    import time
+    
     data = request.get_json() or {}
-    title = data.get('title', '🔔 Test LeadSwipe')
-    body = data.get('body', 'Ceci est une notification de test!')
+    delay_seconds = data.get('delay_seconds', 0)
     
-    success = send_push_notification(
-        title=title,
-        body=body,
-        data={"type": "test"}
-    )
+    # Vérifier qu'il y a des devices enregistrés
+    if not fcm_tokens:
+        return jsonify({
+            "success": False,
+            "error": "Aucun device enregistré"
+        }), 400
     
-    return jsonify({
-        "success": success,
-        "firebase_enabled": firebase_enabled,
-        "registered_devices": len(fcm_tokens),
-        "message": "Notification envoyée" if success else "Échec ou aucun device"
-    })
+    # Définir le message selon le délai
+    title = "🔔 Test LeadSwipe"
+    if delay_seconds > 0:
+        body = f"Notification après {delay_seconds} secondes ⏱️"
+    else:
+        body = "Les notifications fonctionnent ! 🎉"
+    
+    def send_delayed():
+        if delay_seconds > 0:
+            time.sleep(delay_seconds)
+        send_push_notification(
+            title=title,
+            body=body,
+            data={"type": "test", "delay": str(delay_seconds)}
+        )
+    
+    # Si délai, envoyer en background
+    if delay_seconds > 0:
+        thread = threading.Thread(target=send_delayed)
+        thread.daemon = True
+        thread.start()
+        return jsonify({
+            "success": True,
+            "message": f"Notification programmée dans {delay_seconds} secondes"
+        })
+    else:
+        # Envoi immédiat
+        success = send_push_notification(
+            title=title,
+            body=body,
+            data={"type": "test", "delay": "0"}
+        )
+        return jsonify({
+            "success": success,
+            "message": "Notification envoyée" if success else "Échec de l'envoi"
+        })
 
 
 if __name__ == '__main__':
