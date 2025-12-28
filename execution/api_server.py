@@ -26,6 +26,22 @@ from dotenv import load_dotenv
 # Charger les variables d'environnement
 load_dotenv()
 
+# Supabase pour stockage persistant des tokens FCM
+supabase_client = None
+try:
+    from supabase import create_client
+    SUPABASE_URL = os.environ.get('SUPABASE_URL', 'https://axkfgpsadfgadbqtfhlf.supabase.co')
+    SUPABASE_KEY = os.environ.get('SUPABASE_KEY', os.environ.get('SUPABASE_ANON_KEY', ''))
+    if SUPABASE_KEY:
+        supabase_client = create_client(SUPABASE_URL, SUPABASE_KEY)
+        print("✅ Supabase connecté pour stockage FCM tokens")
+    else:
+        print("⚠️ SUPABASE_KEY non configurée - tokens FCM en mémoire seulement")
+except ImportError:
+    print("⚠️ supabase non installé - tokens FCM en mémoire seulement")
+except Exception as e:
+    print(f"⚠️ Erreur Supabase: {e}")
+
 # Firebase Cloud Messaging (optionnel)
 firebase_enabled = False
 try:
@@ -74,8 +90,45 @@ except ImportError:
 except Exception as e:
     print(f"⚠️ Erreur initialisation Firebase: {e}")
 
-# Stockage des tokens FCM (en mémoire - en prod utiliser une DB)
+# Stockage des tokens FCM (en mémoire + Supabase pour persistance)
 fcm_tokens = set()
+
+def load_fcm_tokens_from_supabase():
+    """Charge les tokens FCM depuis Supabase au démarrage"""
+    global fcm_tokens
+    if not supabase_client:
+        return
+    try:
+        response = supabase_client.table('fcm_tokens').select('token').execute()
+        if response.data:
+            fcm_tokens = set(row['token'] for row in response.data)
+            print(f"✅ {len(fcm_tokens)} token(s) FCM chargé(s) depuis Supabase")
+    except Exception as e:
+        print(f"⚠️ Erreur chargement tokens FCM: {e}")
+
+def save_fcm_token_to_supabase(token: str):
+    """Sauvegarde un token FCM dans Supabase"""
+    if not supabase_client:
+        return
+    try:
+        supabase_client.table('fcm_tokens').upsert({
+            'token': token,
+            'last_used_at': datetime.now(timezone.utc).isoformat()
+        }, on_conflict='token').execute()
+    except Exception as e:
+        print(f"⚠️ Erreur sauvegarde token FCM: {e}")
+
+def delete_fcm_token_from_supabase(token: str):
+    """Supprime un token FCM de Supabase"""
+    if not supabase_client:
+        return
+    try:
+        supabase_client.table('fcm_tokens').delete().eq('token', token).execute()
+    except Exception as e:
+        print(f"⚠️ Erreur suppression token FCM: {e}")
+
+# Charger les tokens au démarrage
+load_fcm_tokens_from_supabase()
 
 app = Flask(__name__)
 CORS(app)  # Permet les requêtes cross-origin depuis React
@@ -447,6 +500,7 @@ def register_device():
         }), 400
     
     fcm_tokens.add(fcm_token)
+    save_fcm_token_to_supabase(fcm_token)  # Persistance Supabase
     print(f"📱 Device enregistré (total: {len(fcm_tokens)})")
     
     return jsonify({
@@ -463,8 +517,9 @@ def unregister_device():
     data = request.get_json() or {}
     fcm_token = data.get('fcm_token')
     
-    if fcm_token and fcm_token in fcm_tokens:
+    if fcm_token:
         fcm_tokens.discard(fcm_token)
+        delete_fcm_token_from_supabase(fcm_token)  # Supprimer de Supabase
         print(f"📱 Device désenregistré (total: {len(fcm_tokens)})")
     
     return jsonify({
