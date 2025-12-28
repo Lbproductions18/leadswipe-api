@@ -317,8 +317,8 @@ def run_scrape_async(group_ids, session_id):
         opp_count = len(opportunities) if success else 0
         if opp_count > 0:
             send_push_notification(
-                title="🎉 Scraping terminé!",
-                body=f"{opp_count} nouvelle{'s' if opp_count > 1 else ''} opportunité{'s' if opp_count > 1 else ''} trouvée{'s' if opp_count > 1 else ''}",
+                title="Scraping termine",
+                body=f"{opp_count} nouvelle{'s' if opp_count > 1 else ''} opportunite{'s' if opp_count > 1 else ''} trouvee{'s' if opp_count > 1 else ''}",
                 data={
                     "type": "scrape_complete",
                     "opportunities_count": str(opp_count),
@@ -327,8 +327,8 @@ def run_scrape_async(group_ids, session_id):
             )
         else:
             send_push_notification(
-                title="✅ Scraping terminé",
-                body="Aucune nouvelle opportunité cette fois",
+                title="Scraping termine",
+                body="Aucune nouvelle opportunite cette fois",
                 data={"type": "scrape_complete", "opportunities_count": "0"}
             )
         
@@ -490,11 +490,11 @@ def test_notification():
         }), 400
     
     # Définir le message selon le délai
-    title = "🔔 Test LeadSwipe"
+    title = "Test LeadSwipe"
     if delay_seconds > 0:
-        body = f"Notification après {delay_seconds} secondes ⏱️"
+        body = f"Notification apres {delay_seconds} secondes"
     else:
-        body = "Les notifications fonctionnent ! 🎉"
+        body = "Les notifications fonctionnent"
     
     def send_delayed():
         if delay_seconds > 0:
